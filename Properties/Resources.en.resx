@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, ...</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, ...</value></resheader>
+
+  <data name="AppTitle" xml:space="preserve"><value>ScriptPilot — SQL Runner</value></data>
+
+  <data name="Source" xml:space="preserve"><value>Source</value></data>
+  <data name="Mode" xml:space="preserve"><value>Mode:</value></data>
+  <data name="Folder" xml:space="preserve"><value>Folder</value></data>
+  <data name="Archive" xml:space="preserve"><value>Archive</value></data>
+  <data name="ArchiveFile" xml:space="preserve"><value>Archive file:</value></data>
+  <data name="ScriptsFolder" xml:space="preserve"><value>Scripts folder:</value></data>
+
+  <data name="Connection" xml:space="preserve"><value>Connection (Connection String)</value></data>
+
+  <data name="Options" xml:space="preserve"><value>Options</value></data>
+  <data name="OrderBy" xml:space="preserve"><value>Order by:</value></data>
+  <data name="UseCreationTime" xml:space="preserve"><value>Use Creation Time</value></data>
+  <data name="StopOnError" xml:space="preserve"><value>Stop On Error</value></data>
+  <data name="DryRun" xml:space="preserve"><value>Dry Run</value></data>
+
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Run" xml:space="preserve"><value>Run ▶</value></data>
+  <data name="OpenAppsettings" xml:space="preserve"><value>Open appsettings.json</value></data>
+  <data name="OpenLogs" xml:space="preserve"><value>Open Logs</value></data>
+  <data name="OpenWorkDir" xml:space="preserve"><value>Open Work Dir</value></data>
+
+  <data name="Logs" xml:space="preserve"><value>Logs</value></data>
+
+  <data name="Msg_ConfigPath" xml:space="preserve"><value>Config: {0}</value></data>
+  <data name="Err_ConfigLoad" xml:space="preserve"><value>Config load error: </value></data>
+  <data name="Msg_ConfigSaved" xml:space="preserve"><value>Config saved.</value></data>
+  <data name="Err_ConfigWrite" xml:space="preserve"><value>Config write failed: </value></data>
+  <data name="Err_Run" xml:space="preserve"><value>Run error: </value></data>
+  <data name="Msg_RunStart" xml:space="preserve"><value>===== RUN START ===== (Mode={0})</value></data>
+  <data name="Msg_RunEnd" xml:space="preserve"><value>===== RUN END ===== ExitCode={0}</value></data>
+  <data name="Err_LogsOpen" xml:space="preserve"><value>Couldn't open logs: </value></data>
+  <data name="Err_WorkDirOpen" xml:space="preserve"><value>Couldn't open working folder: </value></data>
+  <data name="Err_WorkDirNotFound" xml:space="preserve"><value>Working folder not found. Try after running in Archive mode.</value></data>
+  
+  <data name="Sort_LastWriteTime" xml:space="preserve"><value>Last write time</value></data>
+  <data name="Sort_FileNameDate" xml:space="preserve"><value>Date in file name</value></data>
+  <data name="Sort_LastWriteTimeThenFileNameDate" xml:space="preserve"><value>Last write time → File name date</value></data>
+  <data name="Sort_FileNameDateThenLastWriteTime" xml:space="preserve"><value>File name date → Last write time</value></data>
+
+</root>

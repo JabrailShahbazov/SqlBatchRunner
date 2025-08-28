@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, ...</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, ...</value></resheader>
+
+  <!-- App Title -->
+  <data name="AppTitle" xml:space="preserve"><value>ScriptPilot — SQL Runner</value></data>
+
+  <!-- Source group -->
+  <data name="Source" xml:space="preserve"><value>Mənbə</value></data>
+  <data name="Mode" xml:space="preserve"><value>Rejim:</value></data>
+  <data name="Folder" xml:space="preserve"><value>Qovluq</value></data>
+  <data name="Archive" xml:space="preserve"><value>Arxiv</value></data>
+  <data name="ArchiveFile" xml:space="preserve"><value>Arxiv faylı:</value></data>
+  <data name="ScriptsFolder" xml:space="preserve"><value>SQL qovluğu:</value></data>
+
+  <!-- Connection group -->
+  <data name="Connection" xml:space="preserve"><value>Bağlantı (Connection String)</value></data>
+
+  <!-- Options group -->
+  <data name="Options" xml:space="preserve"><value>Parametrlər</value></data>
+  <data name="OrderBy" xml:space="preserve"><value>Sıralama:</value></data>
+  <data name="UseCreationTime" xml:space="preserve"><value>CreationTime istifadə et</value></data>
+  <data name="StopOnError" xml:space="preserve"><value>Xətada dayandır</value></data>
+
+  <!-- Actions -->
+  <data name="Save" xml:space="preserve"><value>Yadda saxla</value></data>
+  <data name="Run" xml:space="preserve"><value>İcra et ▶</value></data>
+  <data name="OpenAppsettings" xml:space="preserve"><value>appsettings.json aç</value></data>
+  <data name="OpenLogs" xml:space="preserve"><value>Log qovluğunu aç</value></data>
+  <data name="OpenWorkDir" xml:space="preserve"><value>Work qovluğunu aç</value></data>
+
+  <!-- Logs group -->
+  <data name="Logs" xml:space="preserve"><value>Loglar</value></data>
+
+  <!-- Messages (logs) -->
+  <data name="Msg_ConfigPath" xml:space="preserve"><value>Config: {0}</value></data>
+  <data name="Err_ConfigLoad" xml:space="preserve"><value>Config yüklənmə xətası: </value></data>
+  <data name="Msg_ConfigSaved" xml:space="preserve"><value>Config saxlanıldı.</value></data>
+  <data name="Err_ConfigWrite" xml:space="preserve"><value>Config yazıla bilmədi: </value></data>
+  <data name="Err_Run" xml:space="preserve"><value>Run xətası: </value></data>
+  <data name="Msg_RunStart" xml:space="preserve"><value>===== RUN START ===== (Mode={0})</value></data>
+  <data name="Msg_RunEnd" xml:space="preserve"><value>===== RUN END ===== ExitCode={0}</value></data>
+  <data name="Err_LogsOpen" xml:space="preserve"><value>Logs açıla bilmədi: </value></data>
+  <data name="Err_WorkDirOpen" xml:space="preserve"><value>Working folder açıla bilmədi: </value></data>
+  <data name="Err_WorkDirNotFound" xml:space="preserve"><value>Working folder tapılmadı. Arxiv rejimində run etdikdən sonra cəhd edin.</value></data>
+  
+  <!-- DryRun tərcüməsi -->
+  <data name="DryRun" xml:space="preserve"><value>Sınaq icrası (Dry Run)</value></data>
+  <data name="Sort_LastWriteTime" xml:space="preserve"><value>Son yazılma vaxtı</value></data>
+  <data name="Sort_FileNameDate" xml:space="preserve"><value>Fayl adındakı tarix</value></data>
+  <data name="Sort_LastWriteTimeThenFileNameDate" xml:space="preserve"><value>Əvvəl son yazılma vaxtı, sonra fayl adı tarixi</value></data>
+  <data name="Sort_FileNameDateThenLastWriteTime" xml:space="preserve"><value>Əvvəl fayl adı tarixi, sonra son yazılma vaxtı</value></data>
+</root>

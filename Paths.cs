@@ -1,27 +1,26 @@
-﻿using System;
+﻿// SqlBatchRunner.Win/Paths.cs
+using System;
+using System.IO;
 
 namespace SqlBatchRunner.Win
 {
-    internal static class Paths
+    public static class Paths
     {
-        public static string Company => "ScriptPilot";
+        // C:\ProgramData\ScriptPilot
+        public static string ProgramDataRoot =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "ScriptPilot");
 
-        // Quraşdırma qovluğu (read-only ola bilər)
-        public static string AppDir => AppContext.BaseDirectory;
+        public static string ConfigPath       => Path.Combine(ProgramDataRoot, "appsettings.json");
+        public static string LegacyConfigPath => Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        public static string DefaultConfigPath=> Path.Combine(AppContext.BaseDirectory, "appsettings.default.json");
 
-        // Machine-wide yazıla bilən yer: C:\ProgramData\ScriptPilot
-        public static string ProgramDataDir =>
-            System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), Company);
-
-        // Config yolları
-        public static string ConfigPath => System.IO.Path.Combine(ProgramDataDir, "appsettings.json");
-        public static string LegacyConfigPath => System.IO.Path.Combine(AppDir, "appsettings.json");            // köhnə, səhv yer
-        public static string DefaultConfigPath => System.IO.Path.Combine(AppDir, "appsettings.default.json");   // şablon
+        // NEW: iş qovluqları üçün baza
+        public static string WorkRoot         => Path.Combine(ProgramDataRoot, "work");
 
         public static void EnsureProgramData()
         {
-            if (!System.IO.Directory.Exists(ProgramDataDir))
-                System.IO.Directory.CreateDirectory(ProgramDataDir);
+            Directory.CreateDirectory(ProgramDataRoot);
+            Directory.CreateDirectory(WorkRoot);
         }
     }
 }

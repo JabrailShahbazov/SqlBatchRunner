@@ -6,11 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using SqlBatchRunner.Win;
+using R = global::SqlBatchRunner.Win.Properties.Resources;
 
-namespace WindowsFormsSqlBatchRunner
+namespace SqlBatchRunner.Win
 {
     public partial class MainForm : Form
     {
+        // ProgramData-da saxlanılan konfiq yolu
         private readonly string _configPath = Paths.ConfigPath;
 
         private AppSettings? _cfg;
@@ -20,6 +22,16 @@ namespace WindowsFormsSqlBatchRunner
         public MainForm()
         {
             InitializeComponent();
+
+            // Connection textbox-u "textarea" kimi
+            try
+            {
+                txtConnection.Multiline = true;
+                txtConnection.ScrollBars = ScrollBars.Vertical;
+                txtConnection.MinimumSize = new Size(0, 70);
+                txtConnection.Height = Math.Max(txtConnection.Height, 70);
+            }
+            catch { /* ignore */ }
 
             // Event wiring
             this.Load += MainForm_Load;
@@ -39,6 +51,7 @@ namespace WindowsFormsSqlBatchRunner
             UpdateSourceUi();
         }
 
+        // =================== LOAD ===================
         private void MainForm_Load(object? sender, EventArgs e)
         {
             try
@@ -56,6 +69,7 @@ namespace WindowsFormsSqlBatchRunner
                     else
                         File.WriteAllText(_configPath,
 @"{
+  ""Language"": ""az"",
   ""SourceMode"": ""Folder"",
   ""ArchivePath"": """",
   ""ConnectionString"": """",
@@ -77,8 +91,9 @@ namespace WindowsFormsSqlBatchRunner
 
                 try { this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { /* ignore */ }
 
-                LogInfo($"Config: {_configPath}");
+                LogInfo(string.Format(R.Msg_ConfigPath, _configPath));
 
+                // Köhnə kök qovluqda qalan config varsa .bak et
                 try
                 {
                     if (File.Exists(Paths.LegacyConfigPath))
@@ -88,33 +103,42 @@ namespace WindowsFormsSqlBatchRunner
             }
             catch (Exception ex)
             {
-                LogError("Config yüklənmə xətası: " + ex.Message);
+                LogError(R.Err_ConfigLoad + ex.Message);
             }
         }
 
-        // ---------- Binding ----------
-
+        // =================== BINDING ===================
         private void BindToForm(AppSettings cfg)
         {
-            txtConnection.Text     = cfg.ConnectionString ?? "";
-            txtScriptsFolder.Text  = ToAbsoluteScriptsFolder(cfg.ScriptsFolder ?? "./sql");
+            txtConnection.Text    = cfg.ConnectionString ?? "";
+            txtScriptsFolder.Text = ToAbsoluteScriptsFolder(cfg.ScriptsFolder ?? "./sql");
 
-            if (cmbOrderBy.Items.Count == 0)
+            // --- OrderBy combo (lokallaşdırılmış görünüş + sabit dəyərlər) ---
             {
-                cmbOrderBy.Items.AddRange(new object[]
-                {
-                    "LastWriteTime",
-                    "FileNameDate",
-                    "LastWriteTimeThenFileNameDate",
-                    "FileNameDateThenLastWriteTime"
-                });
-            }
-            cmbOrderBy.SelectedItem = cfg.OrderBy;
-            if (cmbOrderBy.SelectedIndex < 0) cmbOrderBy.SelectedItem = "LastWriteTimeThenFileNameDate";
+                cmbOrderBy.DataSource = null;
+                cmbOrderBy.Items.Clear();
+                cmbOrderBy.DisplayMember = "Key";
+                cmbOrderBy.ValueMember   = "Value";
 
-            chkUseCreation.Checked  = cfg.UseCreationTime;
-            chkStopOnError.Checked  = cfg.StopOnError;
-            chkDryRun.Checked       = cfg.DryRun;
+                var items = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>
+                {
+                    new(R.Sort_LastWriteTime, "LastWriteTime"),
+                    new(R.Sort_FileNameDate, "FileNameDate"),
+                    new(R.Sort_LastWriteTimeThenFileNameDate, "LastWriteTimeThenFileNameDate"),
+                    new(R.Sort_FileNameDateThenLastWriteTime, "FileNameDateThenLastWriteTime"),
+                };
+
+                cmbOrderBy.DataSource = items;
+
+                var current = (cfg.OrderBy ?? "LastWriteTimeThenFileNameDate").Trim();
+                cmbOrderBy.SelectedValue = current;
+                if (cmbOrderBy.SelectedIndex < 0)
+                    cmbOrderBy.SelectedValue = "LastWriteTimeThenFileNameDate";
+            }
+
+            chkUseCreation.Checked = cfg.UseCreationTime;
+            chkStopOnError.Checked = cfg.StopOnError;
+            chkDryRun.Checked      = cfg.DryRun;
 
             // Source mode
             bool isArchive = string.Equals(cfg.SourceMode, "Archive", StringComparison.OrdinalIgnoreCase);
@@ -123,28 +147,66 @@ namespace WindowsFormsSqlBatchRunner
             txtArchivePath.Text     = cfg.ArchivePath ?? "";
 
             UpdateSourceUi();
+            ApplyStrings();
         }
 
         private void BindFromForm(AppSettings cfg)
         {
             cfg.ConnectionString = (txtConnection.Text ?? "").Trim();
             cfg.ScriptsFolder    = FromAbsoluteScriptsFolder((txtScriptsFolder.Text ?? "").Trim());
-            cfg.OrderBy          = (cmbOrderBy.SelectedItem?.ToString() ?? "LastWriteTimeThenFileNameDate").Trim();
+            cfg.OrderBy          = (cmbOrderBy.SelectedValue?.ToString() ?? "LastWriteTimeThenFileNameDate").Trim();
             cfg.UseCreationTime  = chkUseCreation.Checked;
             cfg.StopOnError      = chkStopOnError.Checked;
             cfg.DryRun           = chkDryRun.Checked;
 
-            cfg.SourceMode       = rbSourceArchive.Checked ? "Archive" : "Folder";
-            cfg.ArchivePath      = (txtArchivePath.Text ?? "").Trim();
+            cfg.SourceMode  = rbSourceArchive.Checked ? "Archive" : "Folder";
+            cfg.ArchivePath = (txtArchivePath.Text ?? "").Trim();
         }
 
-        // ---------- Source UI state (əsas düzəliş) ----------
+        private void ApplyStrings()
+        {
+            // Başlıq
+            this.Text = R.AppTitle;
 
+            // Source
+            grpSource.Text = R.Source;
+            // "Mode:" labelını tapıb tərcümə et (layout-a görə 0,0-da yerləşdirilmiş label)
+            foreach (Control c in grpSource.Controls)
+            {
+                if (c is TableLayoutPanel tlp)
+                    if (tlp.GetControlFromPosition(0, 0) is Label lblMode) lblMode.Text = R.Mode;
+            }
+            rbSourceFolder.Text  = R.Folder;
+            rbSourceArchive.Text = R.Archive;
+            lblArchive.Text      = R.ArchiveFile;
+            lblFolder.Text       = R.ScriptsFolder;
+
+            // Connection
+            grpConnection.Text   = R.Connection;
+
+            // Options
+            grpOptions.Text      = R.Options;
+            lblOrder.Text        = R.OrderBy;
+            chkUseCreation.Text  = R.UseCreationTime;
+            chkStopOnError.Text  = R.StopOnError;
+            chkDryRun.Text       = R.DryRun;
+
+            // Actions
+            btnSave.Text            = R.Save;
+            btnRun.Text             = R.Run;
+            btnOpenAppsettings.Text = R.OpenAppsettings;
+            btnOpenLogs.Text        = R.OpenLogs;
+            btnOpenWorkDir.Text     = R.OpenWorkDir;
+
+            // Logs
+            grpLog.Text = R.Logs;
+        }
+
+        // =================== SOURCE UI STATE ===================
         private void UpdateSourceUi()
         {
             bool isArchive = rbSourceArchive.Checked;
 
-            // Hər iki sətir designer-də var; burada sadəcə görünmə/aktivlik dəyişir
             lblArchive.Visible        = txtArchivePath.Visible   = btnBrowseArchive.Visible = isArchive;
             lblFolder.Visible         = txtScriptsFolder.Visible = btnBrowse.Visible        = !isArchive;
 
@@ -155,8 +217,7 @@ namespace WindowsFormsSqlBatchRunner
             btnBrowse.Enabled         = !isArchive;
         }
 
-        // ---------- Browse handlers ----------
-
+        // =================== BROWSE HANDLERS ===================
         private void btnBrowse_Click(object? sender, EventArgs e)
         {
             using var dlg = new FolderBrowserDialog();
@@ -182,19 +243,18 @@ namespace WindowsFormsSqlBatchRunner
             {
                 if (string.IsNullOrWhiteSpace(_lastWorkDir) || !Directory.Exists(_lastWorkDir))
                 {
-                    LogError("Working folder tapılmadı. Arxiv rejimində run etdikdən sonra cəhd edin.");
+                    LogError(R.Err_WorkDirNotFound);
                     return;
                 }
                 Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_lastWorkDir}\"") { UseShellExecute = true });
             }
             catch (Exception ex)
             {
-                LogError("Working folder açıla bilmədi: " + ex.Message);
+                LogError(R.Err_WorkDirOpen + ex.Message);
             }
         }
 
-        // ---------- Appsettings & Logs ----------
-
+        // =================== APPSETTINGS & LOGS ===================
         private void btnOpenAppsettings_Click(object? sender, EventArgs e)
         {
             try
@@ -228,24 +288,23 @@ namespace WindowsFormsSqlBatchRunner
             }
             catch (Exception ex)
             {
-                LogError("Logs açıla bilmədi: " + ex.Message);
+                LogError(R.Err_LogsOpen + ex.Message);
             }
         }
 
-        // ---------- Save & Run ----------
-
+        // =================== SAVE & RUN ===================
         private void btnSave_Click(object? sender, EventArgs e)
         {
             try
             {
-                if (_cfg == null) _cfg = new AppSettings();
+                _cfg ??= new AppSettings();
                 BindFromForm(_cfg);
                 _cfg.Save(_configPath);
-                LogInfo("Config saxlanıldı.");
+                LogInfo(R.Msg_ConfigSaved);
             }
             catch (Exception ex)
             {
-                LogError("Config yazıla bilmədi: " + ex.Message);
+                LogError(R.Err_ConfigWrite + ex.Message);
             }
         }
 
@@ -271,14 +330,14 @@ namespace WindowsFormsSqlBatchRunner
                 _cts = new CancellationTokenSource();
 
                 var svc = new RunnerService(_cfg, LogInfo, LogError);
-                LogInfo($"===== RUN START ===== (Mode={_cfg.SourceMode})");
+                LogInfo(string.Format(R.Msg_RunStart, _cfg.SourceMode));
                 var code = await svc.RunAsync(_cts.Token);
                 _lastWorkDir = svc.LastWorkingDir;
-                LogInfo($"===== RUN END ===== ExitCode={code}");
+                LogInfo(string.Format(R.Msg_RunEnd, code));
             }
             catch (Exception ex)
             {
-                LogError("Run xətası: " + ex.Message);
+                LogError(R.Err_Run + ex.Message);
             }
             finally
             {
@@ -288,8 +347,7 @@ namespace WindowsFormsSqlBatchRunner
             }
         }
 
-        // ---------- Helpers ----------
-
+        // =================== HELPERS ===================
         private void EnsureFolderExists(string path)
         {
             var p = Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));

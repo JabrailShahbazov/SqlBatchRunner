@@ -1,7 +1,4 @@
-﻿using System.Drawing;
-using System.Windows.Forms;
-
-namespace WindowsFormsSqlBatchRunner
+﻿namespace SqlBatchRunner.Win
 {
     partial class MainForm
     {

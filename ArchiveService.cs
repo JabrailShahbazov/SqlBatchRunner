@@ -1,213 +1,169 @@
-﻿using SharpCompress.Archives;
-using System.Security.Cryptography;
+﻿// SqlBatchRunner.Win/ArchiveService.cs
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
 using System.Text.RegularExpressions;
+
+// RAR/7z/tar üçün
+using SharpCompress.Archives;
+using SharpCompress.Common;
 
 namespace SqlBatchRunner.Win
 {
-    public sealed record ScriptItem(
-        string PhysicalPath,
-        string JournalKey,
-        string DisplayName,
-        DateTime LastWriteTimeUtc,
-        DateTime CreationTimeUtc,
-        string Sha256
-    );
-
+    /// <summary>
+    /// Arxiv emalı və SQL fayllarının toplanması üçün util.
+    /// </summary>
     public static class ArchiveService
     {
+        private static readonly Regex _rxDate =
+            new Regex(@"(?<!\d)(20\d{2})[-_ ]?(0[1-9]|1[0-2])[-_ ]?(0[1-9]|[12]\d|3[01])(?:[ _-]?((?:[01]\d|2[0-3]))[:_-]?([0-5]\d)(?:[:_-]?([0-5]\d))?)?",
+                      RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
         /// <summary>
-        /// Arxivi (zip/rar/7z/tar/gz və s.) müvəqqəti iş qovluğuna çıxarır, yalnız .sql faylları qaytarır.
+        /// Arxivi {workRoot}\yyyyMMdd_HHmmss_xxxxx altına çıxardır və oradakı .sql fayllarını qaytarır.
         /// </summary>
         public static (string WorkingDir, List<ScriptItem> Items) ExtractSqlToTemp(
             string archivePath,
             string? workingRootOrNull,
             Action<string> log)
         {
-            if (!File.Exists(archivePath))
+            if (string.IsNullOrWhiteSpace(archivePath) || !File.Exists(archivePath))
                 throw new FileNotFoundException("Archive not found", archivePath);
 
-            var workRoot = string.IsNullOrWhiteSpace(workingRootOrNull)
-                ? Path.Combine(Paths.ProgramDataDir, "work")
-                : workingRootOrNull!;
+            var workRoot = workingRootOrNull;
+            if (string.IsNullOrWhiteSpace(workRoot))
+                workRoot = Paths.WorkRoot;
 
-            Directory.CreateDirectory(workRoot);
+            Directory.CreateDirectory(workRoot!);
 
-            var runId = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N")[..6];
-            var workingDir = Path.Combine(workRoot, runId);
+            var stamp = $"{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid().ToString("N").Substring(0, 5)}";
+            var workingDir = Path.Combine(workRoot!, stamp);
             Directory.CreateDirectory(workingDir);
 
-            var items = new List<ScriptItem>();
-            var archiveName = Path.GetFileName(archivePath);
+            var ext = Path.GetExtension(archivePath).ToLowerInvariant();
 
-            using var arc = SharpCompress.Archives.ArchiveFactory.Open(archivePath);
-            foreach (var entry in arc.Entries.Where(e => !e.IsDirectory))
+            log($"[INFO] Extracting archive: {archivePath} -> {workingDir}");
+
+            if (ext == ".zip")
             {
-                if (!entry.Key.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)) continue;
-
-                var safeRel = Sanitize(entry.Key);
-                var destPath = Path.Combine(workingDir, safeRel);
-                Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-
-                log($"Extract: {entry.Key} -> {MakeRel(workingDir, destPath)}");
-
-                using (var s = entry.OpenEntryStream())
-                using (var fs = File.Create(destPath))
+                ZipFile.ExtractToDirectory(archivePath, workingDir, overwriteFiles: true);
+            }
+            else
+            {
+                // SharpCompress: rar/7z/tar/gz...
+                using var archive = ArchiveFactory.Open(archivePath);
+                foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
                 {
-                    s.CopyTo(fs);
-                    fs.Flush();
+                    var outPath = Path.Combine(workingDir, entry.Key.Replace('/', Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
+                    entry.WriteToFile(outPath, new ExtractionOptions()
+                    {
+                        Overwrite = true,
+                        ExtractFullPath = true
+                    });
+                }
+            }
+
+            var sqls = Directory
+                .EnumerateFiles(workingDir, "*.sql", SearchOption.AllDirectories)
+                .Select(p => ToItem(p))
+                .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            log($"[INFO] Extracted {sqls.Count} SQL file(s).");
+            return (workingDir, sqls);
+        }
+
+        /// <summary>
+        /// work kökündə köhnə run qovluqlarını silir — yalnız ən yeni keepCount qalır.
+        /// </summary>
+        public static void CleanupWorkRoot(string workRoot, int keepCount, Action<string> log)
+        {
+            try { Directory.CreateDirectory(workRoot); } catch { /* ignore */ }
+
+            var list = Directory.Exists(workRoot)
+                ? Directory.GetDirectories(workRoot)
+                    .Select(p => new DirectoryInfo(p))
+                    .OrderByDescending(d => d.CreationTimeUtc)
+                    .ToList()
+                : new List<DirectoryInfo>();
+
+            for (int i = keepCount; i < list.Count; i++)
+                TryDeleteDir(list[i].FullName, log);
+        }
+
+        private static void TryDeleteDir(string path, Action<string> log)
+        {
+            try
+            {
+                if (!Directory.Exists(path)) return;
+
+                foreach (var f in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    try { File.SetAttributes(f, FileAttributes.Normal); } catch { /* ignore */ }
                 }
 
-                // Arxiv metadata-sından gələn vaxtı təhlükəsiz şəkildə UTC-yə çevir
-                var lm = entry.LastModifiedTime ?? DateTime.UtcNow;
-                DateTime lmUtc =
-                    lm.Kind == DateTimeKind.Utc ? lm :
-                    lm.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(lm, DateTimeKind.Utc) :
-                    lm.ToUniversalTime();
-
-                try { File.SetLastWriteTimeUtc(destPath, lmUtc); } catch { /* ignore */ }
-                try { File.SetCreationTimeUtc(destPath, lmUtc); } catch { /* ignore */ }
-
-                var hash = ComputeSHA256(destPath);
-                var display = Path.GetFileName(destPath);
-                var journalKey = $"{archiveName}::{safeRel.Replace('\\', '/')}";
-
-                items.Add(new ScriptItem(
-                    destPath,
-                    journalKey,
-                    display,
-                    File.GetLastWriteTimeUtc(destPath),
-                    File.GetCreationTimeUtc(destPath),
-                    hash
-                ));
+                Directory.Delete(path, true);
+                log($"[INFO] Old work dir removed: {path}");
             }
-
-            return (workingDir, items);
+            catch (Exception ex)
+            {
+                log($"[WARN] Couldn't delete '{path}': {ex.Message}");
+            }
         }
 
-        /// <summary>
-        /// Qovluqdan rekursiv .sql faylları toplayır.
-        /// </summary>
-        public static List<ScriptItem> CollectFromFolder(string folder, string filePattern, Action<string> log)
+        private static ScriptItem ToItem(string filePath)
         {
-            var root = Resolve(folder);
-            if (!Directory.Exists(root))
-                throw new DirectoryNotFoundException($"Scripts folder not found: {root}");
+            var fi = new FileInfo(filePath);
+            DateTime? fnDate = null;
+            if (TryParseDateFromName(fi.Name, out var dt)) fnDate = dt;
 
-            var files = Directory.EnumerateFiles(root, filePattern, SearchOption.AllDirectories).ToList();
-            var list = new List<ScriptItem>();
-            foreach (var f in files)
+            return new ScriptItem
             {
-                var rel = MakeRel(root, f).Replace('\\', '/');
-                var key = rel;
-                var fi = new FileInfo(f);
-                var hash = ComputeSHA256(f);
-
-                list.Add(new ScriptItem(
-                    f, key, fi.Name, fi.LastWriteTimeUtc, fi.CreationTimeUtc, hash));
-            }
-            return list;
-        }
-
-        /// <summary>
-        /// Sıralama üçün açar: fayl vaxtı + ad daxilində tarix (əgər varsa).
-        /// </summary>
-        public static (DateTime k1, DateTime k2, string k3) MakeSortKey(ScriptItem it, string orderBy, bool useCreationTime)
-        {
-            var fileTime = useCreationTime ? it.CreationTimeUtc : it.LastWriteTimeUtc;
-            var nameDate = TryParseDateFromName(it.DisplayName) ?? DateTime.MinValue;
-
-            return orderBy switch
-            {
-                "LastWriteTime" => (fileTime, DateTime.MinValue, it.DisplayName),
-                "FileNameDate" => (nameDate, DateTime.MinValue, it.DisplayName),
-                "LastWriteTimeThenFileNameDate" => (fileTime, nameDate, it.DisplayName),
-                "FileNameDateThenLastWriteTime" => (nameDate, fileTime, it.DisplayName),
-                _ => (fileTime, DateTime.MinValue, it.DisplayName)
+                Path = fi.FullName,
+                Name = fi.Name,
+                LastWrite = fi.LastWriteTimeUtc,
+                Creation = fi.CreationTimeUtc,
+                FileNameDate = fnDate
             };
         }
 
         /// <summary>
-        /// Fayl adından tarixi çıxarır (ilk uyğunluq qaytarılır).
-        /// Dəstəklənən formatlar (separator: -, _, ., *boşluq*):
-        ///   YYYY-MM-DD | YYYY_MM_DD | YYYY.MM.DD | YYYY MM DD | YYYYMMDD
-        ///   DD-MM-YYYY | DD_MM_YYYY | DD.MM.YYYY | DD MM YYYY | DDMMYYYY
+        /// Fayl adından tarix (və mümkünsə saat) çıxarır. Məs: 20250820.sql, 2025-08-20 173455_x.sql və s.
         /// </summary>
-        public static DateTime? TryParseDateFromName(string fileName)
+        public static bool TryParseDateFromName(string fileName, out DateTime value)
         {
-            var n = Path.GetFileNameWithoutExtension(fileName);
+            var name = Path.GetFileNameWithoutExtension(fileName);
+            var m = _rxDate.Match(name);
+            if (!m.Success)
+            {
+                value = default;
+                return false;
+            }
 
-            // Separator: '-', '_', '.', WHITESPACE (bir və ya daha çox)
-            const string sep = @"[-_.\s]+";
+            int y = int.Parse(m.Groups[1].Value);
+            int M = int.Parse(m.Groups[2].Value);
+            int d = int.Parse(m.Groups[3].Value);
+            int hh = m.Groups[4].Success ? int.Parse(m.Groups[4].Value) : 0;
+            int mm = m.Groups[5].Success ? int.Parse(m.Groups[5].Value) : 0;
+            int ss = m.Groups[6].Success ? int.Parse(m.Groups[6].Value) : 0;
 
-            // 1) ISO tərzi (YYYY sep MM sep DD) – ambiq deyil, prioritetlə yoxlayırıq
-            var mIso = Regex.Match(n, $@"(?<!\d)(\d{{4}}){sep}(\d{{2}}){sep}(\d{{2}})(?!\d)",
-                                   RegexOptions.CultureInvariant);
-            if (mIso.Success &&
-                TryMakeDate(int.Parse(mIso.Groups[1].Value), int.Parse(mIso.Groups[2].Value), int.Parse(mIso.Groups[3].Value), out var dtIso))
-                return dtIso;
-
-            // 2) Bitişik (YYYYMMDD)
-            var mIsoTight = Regex.Match(n, @"(?<!\d)(\d{4})(\d{2})(\d{2})(?!\d)",
-                                        RegexOptions.CultureInvariant);
-            if (mIsoTight.Success &&
-                TryMakeDate(int.Parse(mIsoTight.Groups[1].Value), int.Parse(mIsoTight.Groups[2].Value), int.Parse(mIsoTight.Groups[3].Value), out var dtIsoT))
-                return dtIsoT;
-
-            // 3) Lokal tərz (DD sep MM sep YYYY) – ambiq ola bilər, ISO-dan sonra
-            var mDmY = Regex.Match(n, $@"(?<!\d)(\d{{2}}){sep}(\d{{2}}){sep}(\d{{4}})(?!\d)",
-                                   RegexOptions.CultureInvariant);
-            if (mDmY.Success &&
-                TryMakeDate(int.Parse(mDmY.Groups[3].Value), int.Parse(mDmY.Groups[2].Value), int.Parse(mDmY.Groups[1].Value), out var dtDmY))
-                return dtDmY;
-
-            // 4) Bitişik (DDMMYYYY)
-            var mDmYTight = Regex.Match(n, @"(?<!\d)(\d{2})(\d{2})(\d{4})(?!\d)",
-                                        RegexOptions.CultureInvariant);
-            if (mDmYTight.Success &&
-                TryMakeDate(int.Parse(mDmYTight.Groups[3].Value), int.Parse(mDmYTight.Groups[2].Value), int.Parse(mDmYTight.Groups[1].Value), out var dtDmYT))
-                return dtDmYT;
-
-            return null;
-        }
-
-        /// <summary>Y/M/D intervallarını yoxlayıb etibarlı tarix yaradır.</summary>
-        private static bool TryMakeDate(int y, int m, int d, out DateTime dt)
-        {
-            dt = default;
-            if (y is < 1900 or > 9999) return false;
-            if (m is < 1 or > 12) return false;
-            var maxD = DateTime.DaysInMonth(y, m);
-            if (d < 1 || d > maxD) return false;
-
-            dt = new DateTime(y, m, d);
+            value = new DateTime(y, M, d, hh, mm, ss, DateTimeKind.Utc);
             return true;
         }
+    }
 
-        private static string Resolve(string p) =>
-            Path.IsPathRooted(p) ? p : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, p));
-
-        private static string Sanitize(string key)
-        {
-            var rel = key.Replace('/', '\\').TrimStart('\\');
-            if (rel.Contains("..")) rel = rel.Replace("..", "__"); // path traversal qarşısı
-            return rel;
-        }
-
-        public static string ComputeSHA256(string filePath)
-        {
-            using var sha = SHA256.Create();
-            using var fs = File.OpenRead(filePath);
-            var hash = sha.ComputeHash(fs);
-            return Convert.ToHexString(hash);
-        }
-
-        private static string MakeRel(string root, string path)
-        {
-            var r = Path.GetFullPath(root).TrimEnd('\\') + "\\";
-            var p = Path.GetFullPath(path);
-            if (p.StartsWith(r, StringComparison.OrdinalIgnoreCase))
-                return p.Substring(r.Length);
-            return path;
-        }
+    /// <summary>
+    /// SQL faylı haqqında meta.
+    /// </summary>
+    public sealed class ScriptItem
+    {
+        public string Path { get; set; } = default!;
+        public string Name { get; set; } = default!;
+        public DateTime LastWrite { get; set; }
+        public DateTime Creation { get; set; }
+        public DateTime? FileNameDate { get; set; }
     }
 }
