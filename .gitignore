@@ -1,0 +1,86 @@
+############################
+# .NET build outputs
+############################
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+*.opendb
+*.pdb
+*.mdb
+
+############################
+# VS / Rider / VS Code
+############################
+.vs/
+.idea/
+*.sln.iml
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.csproj.user
+.vscode/
+
+############################
+# NuGet / Packages
+############################
+packages/
+*.nupkg
+# NuGet global cache systemdirindədir, amma lokal packages qovluğu varsa ignorla
+
+############################
+# Publish artifacts (copy-only)
+############################
+# Single-file publish, runtime dll-lər və s.
+**/publish/
+
+############################
+# Inno Setup outputs
+############################
+# Setup exe-lər adətən eyni qovluğa və ya Output/ qovluğuna düşür
+Output/
+*_Setup_*.exe
+
+############################
+# App config / secrets / runtime data
+############################
+# Lokal konfiq (prod-da parol ola bilər) – repo-ya atma
+appsettings.json
+# Default templateni saxlayırıq (YEKLƏNMƏSİN!)
+#!appsettings.default.json
+
+# Jurnal və loglar (icra zamanı yaranır)
+**/executed.json
+**/logs/
+*.log
+
+# Arxiv çıxarışının iş qovluqları (əgər layihə içində saxlayırsansa)
+work/
+
+############################
+# OS junk
+############################
+# Windows
+Thumbs.db
+Desktop.ini
+*.lnk
+# Mac
+.DS_Store
+# Temp
+~$*
+*.tmp
+
+############################
+# Test/sample arxivlər (opsional)
+############################
+# Böyük ZIP/RAR faylları repo-ya atmaq istəmirsənsə:
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Amma nümunələri izləmək istəyirsənsə, 'samples/' altındakılara icazə ver:
+!samples/
+!samples/**/*
