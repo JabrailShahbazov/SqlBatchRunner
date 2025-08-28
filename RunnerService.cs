@@ -1,225 +1,231 @@
-﻿using Microsoft.Data.SqlClient;
-using System.Diagnostics;
+﻿using System.Data;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.Data.SqlClient;
+using Serilog;
 
 namespace SqlBatchRunner.Win
 {
-    public sealed partial class RunnerService
+    public class RunnerService
     {
         private readonly AppSettings _cfg;
-        private readonly Action<string> _logInfo;
-        private readonly Action<string> _logError;
+        private readonly Action<string> _info;
+        private readonly Action<string> _err;
 
+        private ILogger? _fileLogger;
         public string? LastWorkingDir { get; private set; }
 
-        public RunnerService(AppSettings cfg, Action<string> logInfo, Action<string> logError)
+        public RunnerService(AppSettings cfg, Action<string> info, Action<string> err)
         {
             _cfg = cfg;
-            _logInfo = logInfo;
-            _logError = logError;
+            _info = msg => { info(msg); _fileLogger?.Information(msg); };
+            _err  = msg => { err(msg);  _fileLogger?.Error(msg);       };
         }
 
+        // ==== PUBLIC ====
         public async Task<int> RunAsync(CancellationToken ct)
         {
             try
             {
-                var items = new List<ScriptItem>();
-                LastWorkingDir = null;
+                InitFileLogger();
 
+                // 1) Skriptləri topla
+                List<ScriptItem> items;
                 if (string.Equals(_cfg.SourceMode, "Archive", StringComparison.OrdinalIgnoreCase))
                 {
                     if (string.IsNullOrWhiteSpace(_cfg.ArchivePath))
-                        throw new InvalidOperationException("Archive mode selected but ArchivePath is empty.");
+                        throw new InvalidOperationException("Archive mode seçilib, amma ArchivePath boşdur.");
 
-                    Info($"Mode: Archive → {_cfg.ArchivePath}");
-                    var (work, extracted) = ArchiveService.ExtractSqlToTemp(_cfg.ArchivePath!, _cfg.WorkingRoot, Info);
-                    LastWorkingDir = work;
-                    items = extracted;
+                    var (workDir, list) = ArchiveService.ExtractSqlToTemp(_cfg.ArchivePath!, _cfg.WorkingRoot ?? "", _info);
+                    LastWorkingDir = workDir; // Open Work Dir üçün
+                    items = list;
                 }
                 else
                 {
-                    Info($"Mode: Folder → {_cfg.ScriptsFolder}");
-                    items = ArchiveService.CollectFromFolder(_cfg.ScriptsFolder, _cfg.FilePattern, Info);
+                    items = ArchiveService.CollectFromFolder(_cfg.ScriptsFolder ?? ".\\sql", _cfg.FilePattern ?? "*.sql", _info);
                 }
 
-                // Sıfır fayl
                 if (items.Count == 0)
                 {
-                    Info("No .sql files found.");
+                    _info("Heç bir .sql tapılmadı.");
                     return 0;
                 }
 
-                // Sıralama
+                // 2) Sort
+                var useCreation = _cfg.UseCreationTime;
                 items = items
-                    .OrderBy(it => ArchiveService.MakeSortKey(it, _cfg.OrderBy, _cfg.UseCreationTime))
+                    .OrderBy(it =>
+                    {
+                        var k = ArchiveService.MakeSortKey(it, _cfg.OrderBy ?? "LastWriteTimeThenFileNameDate", useCreation);
+                        return (k.k1, k.k2, k.k3);
+                    })
                     .ToList();
 
-                // Jurnal
-                var journalPath = string.IsNullOrWhiteSpace(_cfg.JournalFile) ? "executed.json"
-                                 : (Path.IsPathRooted(_cfg.JournalFile) ? _cfg.JournalFile
-                                    : Path.Combine(_cfg.SourceMode.Equals("Archive", StringComparison.OrdinalIgnoreCase) && LastWorkingDir is not null
-                                        ? LastWorkingDir : ArchiveService.CollectFromFolder(_cfg.ScriptsFolder, _cfg.FilePattern, _ => { }).Count >= 0 // hack
-                                        ? Path.GetFullPath(_cfg.ScriptsFolder) : AppContext.BaseDirectory, _cfg.JournalFile));
+                // 3) Jurnal yeri (HƏMİŞƏ ScriptsFolder altında!)
+                var scriptsRoot = ToAbsoluteScriptsFolder(_cfg.ScriptsFolder ?? ".\\sql");
+                Directory.CreateDirectory(scriptsRoot);
+                var journalPath = Path.IsPathRooted(_cfg.JournalFile ?? "")
+                    ? _cfg.JournalFile!
+                    : Path.Combine(scriptsRoot, _cfg.JournalFile ?? "executed.json");
 
-                // Əgər Folder modundayıq → jurnalı ScriptsFolder altında saxla.
-                // Archive modunda isə jurnalı "EAyni yer"də saxlamaq istəmirsənsə, ProgramData-ya absolute yaz.
-                if (_cfg.SourceMode.Equals("Folder", StringComparison.OrdinalIgnoreCase))
-                {
-                    var root = Path.IsPathRooted(_cfg.ScriptsFolder) ? _cfg.ScriptsFolder : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, _cfg.ScriptsFolder));
-                    journalPath = Path.IsPathRooted(_cfg.JournalFile) ? _cfg.JournalFile : Path.Combine(root, _cfg.JournalFile);
-                }
-                else
-                {
-                    // Archive mode: default — ProgramData\ScriptPilot\journal\executed.json
-                    if (!Path.IsPathRooted(_cfg.JournalFile))
-                    {
-                        var jdir = Path.Combine(Paths.ProgramDataDir, "journal");
-                        Directory.CreateDirectory(jdir);
-                        journalPath = Path.Combine(jdir, _cfg.JournalFile);
-                    }
-                }
+                var journal = LoadJournal(journalPath);
 
-                var journal = Journal.Load(journalPath);
-                Info($"Journal: {journalPath}");
-
+                // 4) SQL bağlantısını hazırla
                 using var conn = new SqlConnection(_cfg.ConnectionString);
-                conn.InfoMessage += (s, e) => { if (!string.IsNullOrWhiteSpace(e.Message)) Info("SQL INFO: " + e.Message.Trim()); };
                 await conn.OpenAsync(ct);
 
+                // 5) İcra et
+                int ok = 0, skipped = 0, failed = 0;
                 foreach (var it in items)
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    var fileKey = it.JournalKey;
-                    if (journal.IsExecuted(fileKey, it.Sha256, _cfg.RerunIfChanged))
+                    var already = journal.TryGetValue(it.JournalKey, out var j)
+                                  ? j
+                                  : null;
+
+                    // rerun qaydası
+                    var shallRun = already is null || (_cfg.RerunIfChanged && !string.Equals(already.Sha256, it.Sha256, StringComparison.OrdinalIgnoreCase));
+
+                    if (!shallRun)
                     {
-                        Info($"[SKIP] {fileKey} already executed (hash match).");
+                        skipped++;
+                        _info($"SKIP: {it.DisplayName} (jurnal: {already!.ExecutedAtUtc:yyyy-MM-dd HH:mm:ss} UTC)");
                         continue;
                     }
-
-                    string sql;
-                    try
-                    {
-                        sql = await File.ReadAllTextAsync(it.PhysicalPath, Encoding.UTF8, ct);
-                    }
-                    catch (Exception exRead)
-                    {
-                        Err($"[ERR ] FILE_READ_ERROR {fileKey}: {exRead.Message}");
-                        if (_cfg.StopOnError) return 1;
-                        continue;
-                    }
-
-                    var batches = SplitIntoBatches(sql).ToList();
-                    Info($"[RUN ] {fileKey} Batches={batches.Count}");
-
-                    if (_cfg.DryRun)
-                    {
-                        Info($"[DRY ] {fileKey} — validation only.");
-                        continue;
-                    }
-
-                    var swFile = Stopwatch.StartNew();
-                    using var tx = conn.BeginTransaction();
-                    var fileOk = true;
 
                     try
                     {
-                        for (int i = 0; i < batches.Count; i++)
-                        {
-                            ct.ThrowIfCancellationRequested();
+                        var sql = await File.ReadAllTextAsync(it.PhysicalPath, ct);
+                        var batches = SplitSqlBatches(sql);
 
-                            var batch = batches[i];
-                            var sw = Stopwatch.StartNew();
-                            try
+                        _info($"RUN : {it.DisplayName}  (batches={batches.Count})");
+
+                        if (!_cfg.DryRun)
+                        {
+                            foreach (var b in batches)
                             {
-                                using var cmd = new SqlCommand(batch, conn, tx) { CommandTimeout = 0 };
-                                var affected = await cmd.ExecuteNonQueryAsync(ct);
-                                sw.Stop();
-                                Info($"[OK  ] {fileKey} Batch={i + 1}/{batches.Count} Ms={sw.ElapsedMilliseconds} Affected={affected}");
-                            }
-                            catch (Exception exBatch)
-                            {
-                                sw.Stop();
-                                fileOk = false;
-                                Err($"[ERR ] BATCH_ERROR {fileKey} Batch={i + 1}: {exBatch.Message}\nSNIPPET: {GetSnippet(batch)}");
-                                try { tx.Rollback(); } catch { /* ignore */ }
-                                break;
+                                using var cmd = new SqlCommand(b, conn) { CommandType = CommandType.Text, CommandTimeout = 0 };
+                                await cmd.ExecuteNonQueryAsync(ct);
                             }
                         }
 
-                        if (fileOk)
+                        // jurnal
+                        journal[it.JournalKey] = new JournalEntry
                         {
-                            tx.Commit();
-                            journal.MarkExecuted(fileKey, it.Sha256);
-                            journal.Save(journalPath);
-                            swFile.Stop();
-                            Info($"[OK  ] {fileKey} Batches={batches.Count} TotalMs={swFile.ElapsedMilliseconds}");
-                        }
-                    }
-                    catch (Exception exFile)
-                    {
-                        fileOk = false;
-                        Err($"[ERR ] FILE_ERROR {fileKey}: {exFile.Message}");
-                        try { tx.Rollback(); } catch { /* ignore */ }
-                    }
+                            Key = it.JournalKey,
+                            DisplayName = it.DisplayName,
+                            Sha256 = it.Sha256,
+                            ExecutedAtUtc = DateTime.UtcNow
+                        };
+                        SaveJournal(journalPath, journal);
 
-                    if (!fileOk && _cfg.StopOnError)
+                        ok++;
+                    }
+                    catch (Exception ex)
                     {
-                        Info("StopOnError=true → stopping.");
-                        return 1;
+                        failed++;
+                        _err($"FAIL: {it.DisplayName} -> {ex.Message}");
+                        if (_cfg.StopOnError) break;
                     }
                 }
 
-                Info("Done.");
-                return 0;
+                _info($"Netice: OK={ok}, Skipped={skipped}, Failed={failed}");
+                return failed == 0 ? 0 : 1;
             }
             catch (OperationCanceledException)
             {
-                Info("Canceled.");
-                return 3;
+                _err("Ləğv edildi.");
+                return 2;
             }
             catch (Exception ex)
             {
-                Err("Fatal: " + ex);
-                return 2;
+                _err("Fatal: " + ex.Message);
+                return 1;
+            }
+            finally
+            {
+                ( _fileLogger as IDisposable )?.Dispose();
             }
         }
 
-        [GeneratedRegex(@"^\s*GO\s*;?\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase)]
-        private static partial Regex GoSplitterRegex();
+        // ==== LOGGER ====
+        private void InitFileLogger()
+        {
+            // Logların bazası HƏMİŞƏ ScriptsFolder + Logging.Folder
+            var scriptsRoot = ToAbsoluteScriptsFolder(_cfg.ScriptsFolder ?? ".\\sql");
+            var logsRoot = _cfg.Logging?.Folder ?? "logs";
+            var logsDir = Path.IsPathRooted(logsRoot) ? logsRoot : Path.Combine(scriptsRoot, logsRoot);
 
-        private static IEnumerable<string> SplitIntoBatches(string sql) =>
-            GoSplitterRegex().Split(sql).Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s));
+            Directory.CreateDirectory(logsDir);
 
-        private void Info(string m) { _logInfo(m); WriteFileLog("INFO", m); }
-        private void Err(string m) { _logError(m); WriteFileLog("ERROR", m); }
+            var fileName = (_cfg.Logging?.RollingByDate ?? true)
+                ? $"app-{DateTime.Now:yyyyMMdd}.log"
+                : "app.log";
 
-        private void WriteFileLog(string level, string message)
+            var path = Path.Combine(logsDir, fileName);
+
+            var level = (_cfg.Logging?.MinimumLevel ?? "Information").Trim().ToLowerInvariant();
+            var le = level switch
+            {
+                "debug" => Serilog.Events.LogEventLevel.Debug,
+                "warning" => Serilog.Events.LogEventLevel.Warning,
+                "error" => Serilog.Events.LogEventLevel.Error,
+                "fatal" => Serilog.Events.LogEventLevel.Fatal,
+                _ => Serilog.Events.LogEventLevel.Information
+            };
+
+            _fileLogger = new LoggerConfiguration()
+                .MinimumLevel.Is(le)
+                .WriteTo.File(path, rollingInterval: RollingInterval.Infinite, shared: true)
+                .CreateLogger();
+
+            _info($"Log file: {path}");
+        }
+
+        // ==== HELPERS ====
+        private static List<string> SplitSqlBatches(string raw)
+        {
+            // GO ayırıcısı (sətir başlanğıcı/sonu)
+            var re = new Regex(@"^\s*GO\s*;$|^\s*GO\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+            var parts = re.Split(raw).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+            return parts.Count == 0 ? new List<string> { raw } : parts;
+        }
+
+        private static string ToAbsoluteScriptsFolder(string value)
+        {
+            if (Path.IsPathRooted(value)) return value;
+            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, value));
+        }
+
+        // ==== JOURNAL ====
+        private static Dictionary<string, JournalEntry> LoadJournal(string path)
         {
             try
             {
-                var scripts = _cfg.SourceMode.Equals("Archive", StringComparison.OrdinalIgnoreCase)
-                    ? (LastWorkingDir ?? Paths.ProgramDataDir) // arxiv çıxarışı üçün
-                    : (Path.IsPathRooted(_cfg.ScriptsFolder) ? _cfg.ScriptsFolder : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, _cfg.ScriptsFolder)));
-
-                var logsRoot = _cfg.Logging?.Folder ?? "logs";
-                var logsPath = Path.IsPathRooted(logsRoot) ? logsRoot : Path.Combine(scripts, logsRoot);
-                Directory.CreateDirectory(logsPath);
-
-                var file = (_cfg.Logging?.RollingByDate ?? true)
-                    ? Path.Combine(logsPath, $"app-{DateTime.Now:yyyyMMdd}.log")
-                    : Path.Combine(logsPath, "app.log");
-
-                File.AppendAllText(file, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [{level}] {message}{Environment.NewLine}");
+                if (!File.Exists(path)) return new();
+                var json = File.ReadAllText(path, Encoding.UTF8);
+                var map = JsonSerializer.Deserialize<Dictionary<string, JournalEntry>>(json) ?? new();
+                return map;
             }
-            catch { /* ignore */ }
+            catch { return new(); }
         }
 
-        private static string GetSnippet(string sql, int maxLen = 300)
+        private static void SaveJournal(string path, Dictionary<string, JournalEntry> data)
         {
-            var s = sql.Replace("\r", " ").Replace("\n", " ").Trim();
-            return s.Length <= maxLen ? s : s[..maxLen] + "...";
+            var dir = Path.GetDirectoryName(path)!;
+            Directory.CreateDirectory(dir);
+            var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(path, json, Encoding.UTF8);
+        }
+
+        private sealed class JournalEntry
+        {
+            public string Key { get; set; } = "";
+            public string DisplayName { get; set; } = "";
+            public string Sha256 { get; set; } = "";
+            public DateTime ExecutedAtUtc { get; set; }
         }
     }
 }

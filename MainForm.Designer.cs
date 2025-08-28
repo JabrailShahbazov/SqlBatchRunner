@@ -140,19 +140,24 @@ namespace WindowsFormsSqlBatchRunner
 
             // ==== CONNECTION ====
             grpConnection = new GroupBox
-            {
-                Text = "Connection",
-                Dock = DockStyle.Top,
-                Padding = new Padding(12),
-                Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point)
-            };
+                            {
+                                Text = "Connection",
+                                Dock = DockStyle.Top,
+                                Padding = new Padding(12),
+                                Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point)
+                            };
             txtConnection = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Margin = new Padding(2),
-                BorderStyle = BorderStyle.FixedSingle
-            };
+                            {
+                                Dock = DockStyle.Fill,
+                                Margin = new Padding(2),
+                                BorderStyle = BorderStyle.FixedSingle,
+                                Multiline = true,                 // textarea
+                                ScrollBars = ScrollBars.Vertical, // vertikal scroll
+                                WordWrap = true,
+                                MinimumSize = new Size(0, 70)     // hündürlüyü böyüdür
+                            };
             grpConnection.Controls.Add(txtConnection);
+
 
             // ==== OPTIONS ====
             grpOptions = new GroupBox

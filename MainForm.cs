@@ -217,9 +217,9 @@ namespace WindowsFormsSqlBatchRunner
             try
             {
                 var logsRoot = _cfg?.Logging?.Folder ?? "logs";
-                string baseDir = (rbSourceArchive.Checked && !string.IsNullOrWhiteSpace(_lastWorkDir))
-                    ? _lastWorkDir!
-                    : ToAbsoluteScriptsFolder(_cfg?.ScriptsFolder ?? ".\\sql");
+
+                // Logların bazası HƏMİŞƏ ScriptsFolder-dır (Archive mode olsa da)
+                var baseDir = ToAbsoluteScriptsFolder(_cfg?.ScriptsFolder ?? ".\\sql");
 
                 var logsPath = Path.IsPathRooted(logsRoot) ? logsRoot : Path.Combine(baseDir, logsRoot);
                 Directory.CreateDirectory(logsPath);
