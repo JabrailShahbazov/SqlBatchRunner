@@ -8,16 +8,14 @@
         <Nullable>enable</Nullable>
         <EnableWindowsTargeting>true</EnableWindowsTargeting>
         <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-
-        <!-- EXE ikonu -->
         <ApplicationIcon>branding\scriptpilot.ico</ApplicationIcon>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+        <PackageReference Include="SharpCompress" Version="0.36.2" />
     </ItemGroup>
 
-    <!-- publish çıxışına default config kopyalansın -->
     <ItemGroup>
         <None Update="appsettings.default.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

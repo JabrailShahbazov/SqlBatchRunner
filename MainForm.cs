@@ -1,4 +1,9 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using SqlBatchRunner.Win;
 
@@ -6,15 +11,32 @@ namespace WindowsFormsSqlBatchRunner
 {
     public partial class MainForm : Form
     {
-        // ProgramData-da saxlanılan config
         private readonly string _configPath = Paths.ConfigPath;
 
         private AppSettings? _cfg;
         private CancellationTokenSource? _cts;
+        private string? _lastWorkDir;
 
         public MainForm()
         {
             InitializeComponent();
+
+            // Event wiring
+            this.Load += MainForm_Load;
+
+            rbSourceFolder.CheckedChanged  += (_, __) => UpdateSourceUi();
+            rbSourceArchive.CheckedChanged += (_, __) => UpdateSourceUi();
+
+            btnBrowse.Click          += btnBrowse_Click;
+            btnBrowseArchive.Click   += btnBrowseArchive_Click;
+            btnOpenWorkDir.Click     += btnOpenWorkDir_Click;
+            btnOpenAppsettings.Click += btnOpenAppsettings_Click;
+            btnOpenLogs.Click        += btnOpenLogs_Click;
+            btnSave.Click            += btnSave_Click;
+            btnRun.Click             += btnRun_Click;
+
+            // İlk UI vəziyyəti
+            UpdateSourceUi();
         }
 
         private void MainForm_Load(object? sender, EventArgs e)
@@ -23,7 +45,6 @@ namespace WindowsFormsSqlBatchRunner
             {
                 Paths.EnsureProgramData();
 
-                // İlk dəfə: ProgramData-da appsettings.json yoxdursa, mənbədən kopyala
                 if (!File.Exists(_configPath))
                 {
                     string? src = null;
@@ -35,6 +56,8 @@ namespace WindowsFormsSqlBatchRunner
                     else
                         File.WriteAllText(_configPath,
 @"{
+  ""SourceMode"": ""Folder"",
+  ""ArchivePath"": """",
   ""ConnectionString"": """",
   ""ScriptsFolder"": ""./sql"",
   ""FilePattern"": ""*.sql"",
@@ -43,19 +66,19 @@ namespace WindowsFormsSqlBatchRunner
   ""StopOnError"": false,
   ""JournalFile"": ""executed.json"",
   ""DryRun"": false,
-  ""Logging"": { ""Folder"": ""logs"", ""RollingByDate"": true, ""MinimumLevel"": ""Information"" }
+  ""Logging"": { ""Folder"": ""logs"", ""RollingByDate"": true, ""MinimumLevel"": ""Information"" },
+  ""RerunIfChanged"": true,
+  ""WorkingRoot"": """"
 }");
                 }
 
                 _cfg = AppSettings.Load(_configPath);
                 BindToForm(_cfg);
 
-                // Form ikonu: EXE-dən götür
-                this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                try { this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { /* ignore */ }
 
                 LogInfo($"Config: {_configPath}");
 
-                // Köhnə səhv yerdəki configi .bak et (qarışmasın)
                 try
                 {
                     if (File.Exists(Paths.LegacyConfigPath))
@@ -69,111 +92,110 @@ namespace WindowsFormsSqlBatchRunner
             }
         }
 
+        // ---------- Binding ----------
+
         private void BindToForm(AppSettings cfg)
         {
-            txtConnection.Text = cfg.ConnectionString;
-            txtScriptsFolder.Text = ToAbsoluteScriptsFolder(cfg.ScriptsFolder);
+            txtConnection.Text     = cfg.ConnectionString ?? "";
+            txtScriptsFolder.Text  = ToAbsoluteScriptsFolder(cfg.ScriptsFolder ?? "./sql");
+
+            if (cmbOrderBy.Items.Count == 0)
+            {
+                cmbOrderBy.Items.AddRange(new object[]
+                {
+                    "LastWriteTime",
+                    "FileNameDate",
+                    "LastWriteTimeThenFileNameDate",
+                    "FileNameDateThenLastWriteTime"
+                });
+            }
             cmbOrderBy.SelectedItem = cfg.OrderBy;
             if (cmbOrderBy.SelectedIndex < 0) cmbOrderBy.SelectedItem = "LastWriteTimeThenFileNameDate";
-            chkUseCreation.Checked = cfg.UseCreationTime;
-            chkStopOnError.Checked = cfg.StopOnError;
-            chkDryRun.Checked = cfg.DryRun;
+
+            chkUseCreation.Checked  = cfg.UseCreationTime;
+            chkStopOnError.Checked  = cfg.StopOnError;
+            chkDryRun.Checked       = cfg.DryRun;
+
+            // Source mode
+            bool isArchive = string.Equals(cfg.SourceMode, "Archive", StringComparison.OrdinalIgnoreCase);
+            rbSourceArchive.Checked = isArchive;
+            rbSourceFolder.Checked  = !isArchive;
+            txtArchivePath.Text     = cfg.ArchivePath ?? "";
+
+            UpdateSourceUi();
         }
 
         private void BindFromForm(AppSettings cfg)
         {
-            cfg.ConnectionString = txtConnection.Text.Trim();
-            cfg.ScriptsFolder = FromAbsoluteScriptsFolder(txtScriptsFolder.Text.Trim());
-            cfg.OrderBy = cmbOrderBy.SelectedItem?.ToString() ?? "LastWriteTimeThenFileNameDate";
-            cfg.UseCreationTime = chkUseCreation.Checked;
-            cfg.StopOnError = chkStopOnError.Checked;
-            cfg.DryRun = chkDryRun.Checked;
+            cfg.ConnectionString = (txtConnection.Text ?? "").Trim();
+            cfg.ScriptsFolder    = FromAbsoluteScriptsFolder((txtScriptsFolder.Text ?? "").Trim());
+            cfg.OrderBy          = (cmbOrderBy.SelectedItem?.ToString() ?? "LastWriteTimeThenFileNameDate").Trim();
+            cfg.UseCreationTime  = chkUseCreation.Checked;
+            cfg.StopOnError      = chkStopOnError.Checked;
+            cfg.DryRun           = chkDryRun.Checked;
+
+            cfg.SourceMode       = rbSourceArchive.Checked ? "Archive" : "Folder";
+            cfg.ArchivePath      = (txtArchivePath.Text ?? "").Trim();
         }
 
-        private string ToAbsoluteScriptsFolder(string value)
+        // ---------- Source UI state (əsas düzəliş) ----------
+
+        private void UpdateSourceUi()
         {
-            if (Path.IsPathRooted(value)) return value;
-            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, value));
-        }
-        private string FromAbsoluteScriptsFolder(string absolute)
-        {
-            var baseDir = AppContext.BaseDirectory.TrimEnd('\\');
-            var full = Path.GetFullPath(absolute);
-            if (full.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-            {
-                var rel = "." + full.Substring(baseDir.Length).Replace('/', '\\');
-                return rel;
-            }
-            return absolute;
+            bool isArchive = rbSourceArchive.Checked;
+
+            // Hər iki sətir designer-də var; burada sadəcə görünmə/aktivlik dəyişir
+            lblArchive.Visible        = txtArchivePath.Visible   = btnBrowseArchive.Visible = isArchive;
+            lblFolder.Visible         = txtScriptsFolder.Visible = btnBrowse.Visible        = !isArchive;
+
+            txtArchivePath.ReadOnly   = !isArchive;
+            btnBrowseArchive.Enabled  =  isArchive;
+
+            txtScriptsFolder.ReadOnly =  isArchive;
+            btnBrowse.Enabled         = !isArchive;
         }
 
-        private void btnBrowse_Click(object sender, EventArgs e)
+        // ---------- Browse handlers ----------
+
+        private void btnBrowse_Click(object? sender, EventArgs e)
         {
             using var dlg = new FolderBrowserDialog();
             dlg.SelectedPath = Directory.Exists(txtScriptsFolder.Text) ? txtScriptsFolder.Text : AppContext.BaseDirectory;
             if (dlg.ShowDialog(this) == DialogResult.OK)
-            {
                 txtScriptsFolder.Text = dlg.SelectedPath;
-            }
         }
 
-        private void btnSave_Click(object sender, EventArgs e)
+        private void btnBrowseArchive_Click(object? sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Filter = "Archives|*.zip;*.rar;*.7z;*.tar;*.gz|All files|*.*",
+                Title  = "Select archive"
+            };
+            if (ofd.ShowDialog(this) == DialogResult.OK)
+                txtArchivePath.Text = ofd.FileName;
+        }
+
+        private void btnOpenWorkDir_Click(object? sender, EventArgs e)
         {
             try
             {
-                if (_cfg == null) _cfg = new AppSettings();
-                BindFromForm(_cfg);
-                _cfg.Save(_configPath);   // hər zaman ProgramData
-                LogInfo("Config saxlanıldı.");
+                if (string.IsNullOrWhiteSpace(_lastWorkDir) || !Directory.Exists(_lastWorkDir))
+                {
+                    LogError("Working folder tapılmadı. Arxiv rejimində run etdikdən sonra cəhd edin.");
+                    return;
+                }
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_lastWorkDir}\"") { UseShellExecute = true });
             }
             catch (Exception ex)
             {
-                LogError("Config yazıla bilmədi: " + ex.Message);
+                LogError("Working folder açıla bilmədi: " + ex.Message);
             }
         }
 
-        private async void btnRun_Click(object sender, EventArgs e)
-        {
-            if (_cts != null) { _cts.Cancel(); return; }
+        // ---------- Appsettings & Logs ----------
 
-            try
-            {
-                btnRun.Enabled = false;
-                btnSave.Enabled = false;
-
-                if (_cfg == null) _cfg = new AppSettings();
-                BindFromForm(_cfg);
-                _cfg.Save(_configPath);
-
-                EnsureFolderExists(_cfg.ScriptsFolder);
-                EnsureFolderExists(Path.Combine(_cfg.ScriptsFolder, _cfg.Logging?.Folder ?? "logs"));
-
-                _cts = new CancellationTokenSource();
-
-                var svc = new RunnerService(_cfg, LogInfo, LogError);
-                LogInfo("===== RUN START =====");
-                var code = await svc.RunAsync(_cts.Token);
-                LogInfo($"===== RUN END ===== ExitCode={code}");
-            }
-            catch (Exception ex)
-            {
-                LogError("Run xətası: " + ex.Message);
-            }
-            finally
-            {
-                _cts = null;
-                btnRun.Enabled = true;
-                btnSave.Enabled = true;
-            }
-        }
-
-        private void EnsureFolderExists(string path)
-        {
-            var p = Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
-            if (!Directory.Exists(p)) Directory.CreateDirectory(p);
-        }
-
-        private void btnOpenAppsettings_Click(object sender, EventArgs e)
+        private void btnOpenAppsettings_Click(object? sender, EventArgs e)
         {
             try
             {
@@ -190,13 +212,18 @@ namespace WindowsFormsSqlBatchRunner
             }
         }
 
-        private void btnOpenLogs_Click(object sender, EventArgs e)
+        private void btnOpenLogs_Click(object? sender, EventArgs e)
         {
             try
             {
                 var logsRoot = _cfg?.Logging?.Folder ?? "logs";
-                var logsPath = Path.IsPathRooted(logsRoot) ? logsRoot : Path.Combine(ToAbsoluteScriptsFolder(_cfg?.ScriptsFolder ?? ".\\sql"), logsRoot);
+                string baseDir = (rbSourceArchive.Checked && !string.IsNullOrWhiteSpace(_lastWorkDir))
+                    ? _lastWorkDir!
+                    : ToAbsoluteScriptsFolder(_cfg?.ScriptsFolder ?? ".\\sql");
+
+                var logsPath = Path.IsPathRooted(logsRoot) ? logsRoot : Path.Combine(baseDir, logsRoot);
                 Directory.CreateDirectory(logsPath);
+
                 Process.Start(new ProcessStartInfo("explorer.exe", $"\"{logsPath}\"") { UseShellExecute = true });
             }
             catch (Exception ex)
@@ -205,7 +232,85 @@ namespace WindowsFormsSqlBatchRunner
             }
         }
 
-        // --- UI log helpers ---
+        // ---------- Save & Run ----------
+
+        private void btnSave_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (_cfg == null) _cfg = new AppSettings();
+                BindFromForm(_cfg);
+                _cfg.Save(_configPath);
+                LogInfo("Config saxlanıldı.");
+            }
+            catch (Exception ex)
+            {
+                LogError("Config yazıla bilmədi: " + ex.Message);
+            }
+        }
+
+        private async void btnRun_Click(object? sender, EventArgs e)
+        {
+            if (_cts != null) { _cts.Cancel(); return; }
+
+            try
+            {
+                btnRun.Enabled = false;
+                btnSave.Enabled = false;
+
+                _cfg ??= new AppSettings();
+                BindFromForm(_cfg);
+                _cfg.Save(_configPath);
+
+                if (!rbSourceArchive.Checked) // Folder mode
+                {
+                    EnsureFolderExists(_cfg.ScriptsFolder);
+                    EnsureFolderExists(Path.Combine(_cfg.ScriptsFolder, _cfg.Logging?.Folder ?? "logs"));
+                }
+
+                _cts = new CancellationTokenSource();
+
+                var svc = new RunnerService(_cfg, LogInfo, LogError);
+                LogInfo($"===== RUN START ===== (Mode={_cfg.SourceMode})");
+                var code = await svc.RunAsync(_cts.Token);
+                _lastWorkDir = svc.LastWorkingDir;
+                LogInfo($"===== RUN END ===== ExitCode={code}");
+            }
+            catch (Exception ex)
+            {
+                LogError("Run xətası: " + ex.Message);
+            }
+            finally
+            {
+                _cts = null;
+                btnRun.Enabled = true;
+                btnSave.Enabled = true;
+            }
+        }
+
+        // ---------- Helpers ----------
+
+        private void EnsureFolderExists(string path)
+        {
+            var p = Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
+            if (!Directory.Exists(p)) Directory.CreateDirectory(p);
+        }
+
+        private string ToAbsoluteScriptsFolder(string value)
+        {
+            if (Path.IsPathRooted(value)) return value;
+            return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, value));
+        }
+
+        private string FromAbsoluteScriptsFolder(string absolute)
+        {
+            var baseDir = AppContext.BaseDirectory.TrimEnd('\\');
+            var full = Path.GetFullPath(absolute);
+            if (full.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+                return "." + full.Substring(baseDir.Length).Replace('/', '\\');
+            return absolute;
+        }
+
         private void LogInfo(string msg) => AppendLog(msg, false);
         private void LogError(string msg) => AppendLog(msg, true);
 

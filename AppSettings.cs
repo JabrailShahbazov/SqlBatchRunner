@@ -4,10 +4,15 @@ namespace SqlBatchRunner.Win
 {
     public sealed class AppSettings
     {
+        // MƏNBƏ SEÇİMİ
+        // Folder | Archive
+        public string SourceMode { get; set; } = "Folder";
+        public string? ArchivePath { get; set; } = "";
+
+        // Mövcud sahələr
         public string ConnectionString { get; set; } = "";
-        public string ScriptsFolder { get; set; } = "";
+        public string ScriptsFolder { get; set; } = ".\\sql";
         public string FilePattern { get; set; } = "*.sql";
-        // LastWriteTime | FileNameDate | LastWriteTimeThenFileNameDate | FileNameDateThenLastWriteTime
         public string OrderBy { get; set; } = "LastWriteTimeThenFileNameDate";
         public bool UseCreationTime { get; set; } = false;
         public bool StopOnError { get; set; } = false;
@@ -15,6 +20,12 @@ namespace SqlBatchRunner.Win
         public bool DryRun { get; set; } = false;
 
         public LoggingSettings? Logging { get; set; } = new();
+
+        // Dəyişmiş faylı yenidən işə sal
+        public bool RerunIfChanged { get; set; } = true;
+
+        // Arxiv çıxarışı üçün iş qovluğu kökü (default: C:\ProgramData\ScriptPilot\work)
+        public string? WorkingRoot { get; set; } = null;
 
         public static AppSettings Load(string path)
         {
@@ -36,23 +47,5 @@ namespace SqlBatchRunner.Win
         public string Folder { get; set; } = "logs";
         public bool RollingByDate { get; set; } = true;
         public string MinimumLevel { get; set; } = "Information";
-    }
-
-    public sealed class Journal
-    {
-        public HashSet<string> ExecutedFiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-        public static Journal Load(string path)
-        {
-            if (!File.Exists(path)) return new Journal();
-            var json = File.ReadAllText(path);
-            return System.Text.Json.JsonSerializer.Deserialize<Journal>(json) ?? new Journal();
-        }
-
-        public void Save(string path)
-        {
-            var json = System.Text.Json.JsonSerializer.Serialize(this, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(path, json);
-        }
     }
 }

@@ -1,8 +1,53 @@
-﻿namespace WindowsFormsSqlBatchRunner
+﻿using System.Drawing;
+using System.Windows.Forms;
+
+namespace WindowsFormsSqlBatchRunner
 {
     partial class MainForm
     {
         private System.ComponentModel.IContainer components = null;
+
+        // Root
+        private TableLayoutPanel tlpRoot;
+
+        // Source
+        private GroupBox grpSource;
+        private TableLayoutPanel tlpSource;
+        private FlowLayoutPanel flpSourceMode;
+        private RadioButton rbSourceFolder;
+        private RadioButton rbSourceArchive;
+        private Label lblArchive;
+        private TextBox txtArchivePath;
+        private Button btnBrowseArchive;
+        private Label lblFolder;
+        private TextBox txtScriptsFolder;
+        private Button btnBrowse;
+
+        // Connection
+        private GroupBox grpConnection;
+        private TextBox txtConnection;
+
+        // Options
+        private GroupBox grpOptions;
+        private TableLayoutPanel tlpOptions;
+        private Label lblOrder;
+        private ComboBox cmbOrderBy;
+        private CheckBox chkUseCreation;
+        private CheckBox chkStopOnError;
+        private CheckBox chkDryRun;
+
+        // Actions
+        private FlowLayoutPanel flpActions;
+        private Button btnSave;
+        private Button btnRun;
+        private Button btnOpenAppsettings;
+        private Button btnOpenLogs;
+        private Button btnOpenWorkDir;
+
+        // Logs
+        private GroupBox grpLog;
+        private RichTextBox rtbLog;
+
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null)) components.Dispose();
@@ -11,204 +56,198 @@
 
         private void InitializeComponent()
         {
-            this.txtConnection = new System.Windows.Forms.TextBox();
-            this.label1 = new System.Windows.Forms.Label();
-            this.txtScriptsFolder = new System.Windows.Forms.TextBox();
-            this.label2 = new System.Windows.Forms.Label();
-            this.btnBrowse = new System.Windows.Forms.Button();
-            this.cmbOrderBy = new System.Windows.Forms.ComboBox();
-            this.label3 = new System.Windows.Forms.Label();
-            this.chkUseCreation = new System.Windows.Forms.CheckBox();
-            this.chkStopOnError = new System.Windows.Forms.CheckBox();
-            this.chkDryRun = new System.Windows.Forms.CheckBox();
-            this.btnSave = new System.Windows.Forms.Button();
-            this.btnRun = new System.Windows.Forms.Button();
-            this.btnOpenAppsettings = new System.Windows.Forms.Button();
-            this.btnOpenLogs = new System.Windows.Forms.Button();
-            this.rtbLog = new System.Windows.Forms.RichTextBox();
-            this.SuspendLayout();
-            // 
-            // txtConnection
-            // 
-            this.txtConnection.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtConnection.Location = new System.Drawing.Point(15, 32);
-            this.txtConnection.Multiline = true;
-            this.txtConnection.Name = "txtConnection";
-            this.txtConnection.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.txtConnection.Size = new System.Drawing.Size(774, 54);
-            this.txtConnection.TabIndex = 0;
-            // 
-            // label1
-            // 
-            this.label1.Location = new System.Drawing.Point(12, 9);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(277, 20);
-            this.label1.Text = "Connection String";
-            // 
-            // txtScriptsFolder
-            // 
-            this.txtScriptsFolder.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtScriptsFolder.Location = new System.Drawing.Point(15, 115);
-            this.txtScriptsFolder.Name = "txtScriptsFolder";
-            this.txtScriptsFolder.Size = new System.Drawing.Size(692, 23);
-            this.txtScriptsFolder.TabIndex = 1;
-            // 
-            // label2
-            // 
-            this.label2.Location = new System.Drawing.Point(12, 92);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(277, 20);
-            this.label2.Text = "Scripts Folder";
-            // 
-            // btnBrowse
-            // 
-            this.btnBrowse.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnBrowse.Location = new System.Drawing.Point(713, 114);
-            this.btnBrowse.Name = "btnBrowse";
-            this.btnBrowse.Size = new System.Drawing.Size(76, 25);
-            this.btnBrowse.Text = "Browse...";
-            this.btnBrowse.UseVisualStyleBackColor = true;
-            this.btnBrowse.Click += new System.EventHandler(this.btnBrowse_Click);
-            // 
-            // cmbOrderBy
-            // 
-            this.cmbOrderBy.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.cmbOrderBy.FormattingEnabled = true;
-            this.cmbOrderBy.Items.AddRange(new object[] {
-            "LastWriteTime",
-            "FileNameDate",
-            "LastWriteTimeThenFileNameDate",
-            "FileNameDateThenLastWriteTime"});
-            this.cmbOrderBy.Location = new System.Drawing.Point(15, 164);
-            this.cmbOrderBy.Name = "cmbOrderBy";
-            this.cmbOrderBy.Size = new System.Drawing.Size(281, 23);
-            this.cmbOrderBy.TabIndex = 2;
-            // 
-            // label3
-            // 
-            this.label3.Location = new System.Drawing.Point(12, 141);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(277, 20);
-            this.label3.Text = "Order By";
-            // 
-            // chkUseCreation
-            // 
-            this.chkUseCreation.AutoSize = true;
-            this.chkUseCreation.Location = new System.Drawing.Point(313, 166);
-            this.chkUseCreation.Name = "chkUseCreation";
-            this.chkUseCreation.Size = new System.Drawing.Size(181, 19);
-            this.chkUseCreation.Text = "Use Creation Time (Date created)";
-            this.chkUseCreation.UseVisualStyleBackColor = true;
-            // 
-            // chkStopOnError
-            // 
-            this.chkStopOnError.AutoSize = true;
-            this.chkStopOnError.Location = new System.Drawing.Point(15, 196);
-            this.chkStopOnError.Name = "chkStopOnError";
-            this.chkStopOnError.Size = new System.Drawing.Size(98, 19);
-            this.chkStopOnError.Text = "Stop On Error";
-            this.chkStopOnError.UseVisualStyleBackColor = true;
-            // 
-            // chkDryRun
-            // 
-            this.chkDryRun.AutoSize = true;
-            this.chkDryRun.Location = new System.Drawing.Point(130, 196);
-            this.chkDryRun.Name = "chkDryRun";
-            this.chkDryRun.Size = new System.Drawing.Size(67, 19);
-            this.chkDryRun.Text = "Dry Run";
-            this.chkDryRun.UseVisualStyleBackColor = true;
-            // 
-            // btnSave
-            // 
-            this.btnSave.Location = new System.Drawing.Point(15, 225);
-            this.btnSave.Name = "btnSave";
-            this.btnSave.Size = new System.Drawing.Size(104, 28);
-            this.btnSave.Text = "Save Settings";
-            this.btnSave.UseVisualStyleBackColor = true;
-            this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
-            // 
-            // btnRun
-            // 
-            this.btnRun.Location = new System.Drawing.Point(130, 225);
-            this.btnRun.Name = "btnRun";
-            this.btnRun.Size = new System.Drawing.Size(104, 28);
-            this.btnRun.Text = "Run ▶";
-            this.btnRun.UseVisualStyleBackColor = true;
-            this.btnRun.Click += new System.EventHandler(this.btnRun_Click);
-            // 
-            // btnOpenAppsettings
-            // 
-            this.btnOpenAppsettings.Location = new System.Drawing.Point(245, 225);
-            this.btnOpenAppsettings.Name = "btnOpenAppsettings";
-            this.btnOpenAppsettings.Size = new System.Drawing.Size(129, 28);
-            this.btnOpenAppsettings.Text = "Open appsettings.json";
-            this.btnOpenAppsettings.UseVisualStyleBackColor = true;
-            this.btnOpenAppsettings.Click += new System.EventHandler(this.btnOpenAppsettings_Click);
-            // 
-            // btnOpenLogs
-            // 
-            this.btnOpenLogs.Location = new System.Drawing.Point(384, 225);
-            this.btnOpenLogs.Name = "btnOpenLogs";
-            this.btnOpenLogs.Size = new System.Drawing.Size(104, 28);
-            this.btnOpenLogs.Text = "Open Logs";
-            this.btnOpenLogs.UseVisualStyleBackColor = true;
-            this.btnOpenLogs.Click += new System.EventHandler(this.btnOpenLogs_Click);
-            // 
-            // rtbLog
-            // 
-            this.rtbLog.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-                        | System.Windows.Forms.AnchorStyles.Left)
-                        | System.Windows.Forms.AnchorStyles.Right)));
-            this.rtbLog.Location = new System.Drawing.Point(15, 268);
-            this.rtbLog.Name = "rtbLog";
-            this.rtbLog.ReadOnly = true;
-            this.rtbLog.Size = new System.Drawing.Size(774, 260);
-            this.rtbLog.TabIndex = 99;
-            this.rtbLog.Text = "";
+            components = new System.ComponentModel.Container();
 
-            // 
-            // MainForm
-            // 
-            this.ClientSize = new System.Drawing.Size(804, 540);
-            this.Controls.Add(this.rtbLog);
-            this.Controls.Add(this.btnOpenLogs);
-            this.Controls.Add(this.btnOpenAppsettings);
-            this.Controls.Add(this.btnRun);
-            this.Controls.Add(this.btnSave);
-            this.Controls.Add(this.chkDryRun);
-            this.Controls.Add(this.chkStopOnError);
-            this.Controls.Add(this.chkUseCreation);
-            this.Controls.Add(this.label3);
-            this.Controls.Add(this.cmbOrderBy);
-            this.Controls.Add(this.btnBrowse);
-            this.Controls.Add(this.label2);
-            this.Controls.Add(this.txtScriptsFolder);
-            this.Controls.Add(this.label1);
-            this.Controls.Add(this.txtConnection);
-            this.MinimumSize = new System.Drawing.Size(820, 580);
-            this.Name = "MainForm";
-            this.Text = "SqlBatchRunner (Windows)";
-            this.Load += new System.EventHandler(this.MainForm_Load);
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            // ==== FORM ====
+            this.Text = "ScriptPilot — SQL Runner";
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.MinimumSize = new Size(1000, 700);
+            this.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            this.AutoScaleMode = AutoScaleMode.Dpi;
+            this.BackColor = Color.FromArgb(248, 249, 251);
+
+            // ==== ROOT ====
+            tlpRoot = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 5,
+                Padding = new Padding(16)
+            };
+            tlpRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // Source
+            tlpRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // Connection
+            tlpRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // Options
+            tlpRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));      // Actions
+            tlpRoot.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // Log
+
+            // ==== SOURCE ====
+            grpSource = new GroupBox
+            {
+                Text = "Source",
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point)
+            };
+
+            tlpSource = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 3
+            };
+            tlpSource.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            tlpSource.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            tlpSource.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            tlpSource.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // mode
+            tlpSource.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // archive
+            tlpSource.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // folder
+
+            // Mode row
+            flpSourceMode = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.LeftToRight,
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                Margin = new Padding(0, 0, 0, 6)
+            };
+            rbSourceFolder  = new RadioButton { Text = "Folder",  AutoSize = true, Checked = true, Margin = new Padding(0, 2, 16, 0) };
+            rbSourceArchive = new RadioButton { Text = "Archive", AutoSize = true, Margin = new Padding(0, 2, 0, 0) };
+            flpSourceMode.Controls.Add(rbSourceFolder);
+            flpSourceMode.Controls.Add(rbSourceArchive);
+
+            var lblSource = new Label { Text = "Mode:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 0, 8, 6) };
+            tlpSource.Controls.Add(lblSource, 0, 0);
+            tlpSource.Controls.Add(flpSourceMode, 1, 0);
+            tlpSource.SetColumnSpan(flpSourceMode, 2);
+
+            // Archive row (həmişə əlavə edirik; görünməni kod idarə edəcək)
+            lblArchive       = new Label  { Text = "Archive file:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 0, 8, 6) };
+            txtArchivePath   = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(0, 0, 8, 6) };
+            btnBrowseArchive = new Button { Text = "Browse…", Anchor = AnchorStyles.Right, Width = 100, Margin = new Padding(0, 0, 0, 6) };
+            tlpSource.Controls.Add(lblArchive,       0, 1);
+            tlpSource.Controls.Add(txtArchivePath,   1, 1);
+            tlpSource.Controls.Add(btnBrowseArchive, 2, 1);
+
+            // Folder row (həmişə əlavə edirik; görünməni kod idarə edəcək)
+            lblFolder       = new Label  { Text = "Scripts folder:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 0, 8, 0) };
+            txtScriptsFolder= new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = new Padding(0, 0, 8, 0) };
+            btnBrowse       = new Button { Text = "Browse…", Anchor = AnchorStyles.Right, Width = 100, Margin = new Padding(0) };
+            tlpSource.Controls.Add(lblFolder,        0, 2);
+            tlpSource.Controls.Add(txtScriptsFolder, 1, 2);
+            tlpSource.Controls.Add(btnBrowse,        2, 2);
+
+            grpSource.Controls.Add(tlpSource);
+
+            // ==== CONNECTION ====
+            grpConnection = new GroupBox
+            {
+                Text = "Connection",
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point)
+            };
+            txtConnection = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(2),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            grpConnection.Controls.Add(txtConnection);
+
+            // ==== OPTIONS ====
+            grpOptions = new GroupBox
+            {
+                Text = "Options",
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point)
+            };
+            tlpOptions = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 5,
+                RowCount = 1
+            };
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            tlpOptions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+            lblOrder = new Label { Text = "Order by:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 0, 8, 0) };
+            cmbOrderBy = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Anchor = AnchorStyles.Left | AnchorStyles.Right,
+                Margin = new Padding(0, 0, 12, 0)
+            };
+            chkUseCreation = new CheckBox { Text = "Use Creation Time", AutoSize = true, Anchor = AnchorStyles.Left };
+            chkStopOnError = new CheckBox { Text = "Stop On Error", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(16, 0, 0, 0) };
+            chkDryRun      = new CheckBox { Text = "Dry Run", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(16, 0, 0, 0) };
+
+            tlpOptions.Controls.Add(lblOrder, 0, 0);
+            tlpOptions.Controls.Add(cmbOrderBy, 1, 0);
+            tlpOptions.Controls.Add(chkUseCreation, 2, 0);
+            tlpOptions.Controls.Add(chkStopOnError, 3, 0);
+            tlpOptions.Controls.Add(chkDryRun, 4, 0);
+
+            grpOptions.Controls.Add(tlpOptions);
+
+            // ==== ACTIONS ====
+            flpActions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                FlowDirection = FlowDirection.LeftToRight,
+                AutoSize = true,
+                WrapContents = false,
+                Margin = new Padding(0, 8, 0, 0)
+            };
+            btnSave            = new Button { Text = "Save", Width = 110, Height = 34, Margin = new Padding(0, 0, 8, 0) };
+            btnRun             = new Button { Text = "Run ▶", Width = 130, Height = 34, Margin = new Padding(0, 0, 12, 0) };
+            btnOpenAppsettings = new Button { Text = "Open appsettings.json", AutoSize = true, Height = 34, Margin = new Padding(0, 0, 8, 0) };
+            btnOpenLogs        = new Button { Text = "Open Logs", AutoSize = true, Height = 34, Margin = new Padding(0, 0, 8, 0) };
+            btnOpenWorkDir     = new Button { Text = "Open Work Dir", AutoSize = true, Height = 34, Margin = new Padding(0) };
+            flpActions.Controls.AddRange(new Control[] { btnSave, btnRun, btnOpenAppsettings, btnOpenLogs, btnOpenWorkDir });
+            this.AcceptButton = btnRun;
+
+            // ==== LOG ====
+            grpLog = new GroupBox
+            {
+                Text = "Logs",
+                Dock = DockStyle.Fill,
+                Padding = new Padding(12),
+                Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point)
+            };
+            rtbLog = new RichTextBox
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Consolas", 10F, FontStyle.Regular, GraphicsUnit.Point)
+            };
+            grpLog.Controls.Add(rtbLog);
+
+            // ==== ADD ====
+            tlpRoot.Controls.Add(grpSource,    0, 0);
+            tlpRoot.Controls.Add(grpConnection,0, 1);
+            tlpRoot.Controls.Add(grpOptions,   0, 2);
+            tlpRoot.Controls.Add(flpActions,   0, 3);
+            tlpRoot.Controls.Add(grpLog,       0, 4);
+            this.Controls.Add(tlpRoot);
+
+            // Order combobox default (ilk açılışda boş qalmasın deyə)
+            if (cmbOrderBy.Items.Count == 0)
+            {
+                cmbOrderBy.Items.AddRange(new object[]
+                {
+                    "LastWriteTime",
+                    "FileNameDate",
+                    "LastWriteTimeThenFileNameDate",
+                    "FileNameDateThenLastWriteTime"
+                });
+                cmbOrderBy.SelectedItem = "LastWriteTimeThenFileNameDate";
+            }
         }
-
-        private TextBox txtConnection;
-        private Label label1;
-        private TextBox txtScriptsFolder;
-        private Label label2;
-        private Button btnBrowse;
-        private ComboBox cmbOrderBy;
-        private Label label3;
-        private CheckBox chkUseCreation;
-        private CheckBox chkStopOnError;
-        private CheckBox chkDryRun;
-        private Button btnSave;
-        private Button btnRun;
-        private Button btnOpenAppsettings;
-        private Button btnOpenLogs;
-        private RichTextBox rtbLog;
     }
 }
